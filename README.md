@@ -1,46 +1,65 @@
-## Telegram messenger for Android
+<div align="center">
+  <img src="docs/assets/corrode-icon.png" alt="Иконка Corrode" width="144" />
+  <h1>Corrode для Android</h1>
+  <p><strong>Неофициальный Android-клиент Telegram с постепенным переносом логики на Rust.</strong></p>
+  <p>
+    <a href="https://github.com/Buqet/Corrode-Android/actions/workflows/corrode-rust-android.yml?query=branch%3Acorrode%2Frust-phone-normalizer"><img src="https://github.com/Buqet/Corrode-Android/actions/workflows/corrode-rust-android.yml/badge.svg?branch=corrode%2Frust-phone-normalizer" alt="Rust CI" /></a>
+    <a href="https://github.com/Buqet/Corrode-Android/actions/workflows/corrode-android-apk.yml?query=branch%3Acorrode%2Frust-phone-normalizer"><img src="https://github.com/Buqet/Corrode-Android/actions/workflows/corrode-android-apk.yml/badge.svg?branch=corrode%2Frust-phone-normalizer" alt="Android APK CI" /></a>
+  </p>
+</div>
 
-[Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.
-This repo contains the official source code for [Telegram App for Android](https://play.google.com/store/apps/details?id=org.telegram.messenger).
+> Corrode не является официальным приложением Telegram и не связан с Telegram FZ-LLC. Это отдельный экспериментальный форк; название, package ID и тестовая иконка Corrode отличаются от официального приложения.
 
-## Creating your Telegram Application
+## О проекте
 
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
+Corrode основан на [открытом исходном коде Telegram для Android](https://github.com/TelegramMessenger/Telegram-Android). Вместо рискованной одномоментной переписи проект переносит небольшие, изолированные части постепенно: существующие экраны, сетевой протокол и остальную Android-интеграцию пока сохраняет upstream-код.
 
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
+### Уже работает
 
-### API, Protocol documentation
+- Нормализация номера телефона перед `auth.sendCode` выполняется Rust-модулем через JNI.
+- При неподдерживаемом вводе остаётся Java fallback.
+- Для Rust-среза есть unit-тесты; Android workflow собирает native-библиотеки для `armeabi-v7a`, `arm64-v8a`, `x86` и `x86_64`.
+- APK помечен как Corrode и использует отдельный application ID `com.buqet.corrode.beta`.
 
-Telegram API manuals: https://core.telegram.org/api
+Это пока не переписанный на Rust мессенджер: UI, Telegram API/MTProto-клиент, обработка сообщений и основная логика остаются на исходных Java/Kotlin/C++ компонентах.
 
-MTproto protocol manuals: https://core.telegram.org/mtproto
+## Скачать тестовый APK
 
-### Compilation Guide
+Откройте [последний запуск сборки APK в GitHub Actions](https://github.com/Buqet/Corrode-Android/actions/workflows/corrode-android-apk.yml?query=branch%3Acorrode%2Frust-phone-normalizer), выберите успешный run и скачайте artifact `corrode-android-afat-debug`. Артефакт хранится ограниченное время; это debug-сборка, а не релиз.
 
-**Note**: In order to support [reproducible builds](https://core.telegram.org/reproducible-builds), this repo contains dummy release.keystore,  google-services.json and filled variables inside BuildVars.java. Before publishing your own APKs please make sure to replace all these files with your own.
+**Важно:** публичный CI собирает APK с `CORRODE_API_ID=0` и пустым API hash. Он подходит для проверки установки, интерфейса и Rust/JNI-интеграции, но **войти в Telegram через него нельзя**. Для входа нужна отдельная приватная сборка с собственными Telegram API credentials. Firebase/Google Sign-In, push, карты, SafetyNet, платежи, passkeys и автоматическое чтение SMS также требуют Corrode-конфигурации и в тестовом APK отключены или не настроены.
 
-You will require Android Studio 2025.1.4, Android NDK 27.2.12479018 and Android SDK 36.
+## Собрать локально
 
-1. Clone the Telegram source code with its submodules:
-   ```bash
-   git clone --recursive --shallow-submodules https://github.com/DrKLO/Telegram.git Telegram
-   ```
-   In case you forgot the `--recursive` flag, change to the `Telegram` directory and run:
-   ```bash
-   git submodule init && git submodule update --init --recursive --depth=1
-   ```
-2. Copy your release.keystore into TMessagesProj/config
-3. Fill out RELEASE_KEY_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_STORE_PASSWORD in gradle.properties to access your  release.keystore
-4.  Go to https://console.firebase.google.com/, create two android apps with application IDs org.telegram.messenger and org.telegram.messenger.beta, turn on firebase messaging and download google-services.json, which should be copied to the same folder as TMessagesProj.
-5. Open the project in the Studio (note that it should be opened, NOT imported).
-6. Fill out values in TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java – there’s a link for each of the variables showing where and which data to obtain.
-7. You are ready to compile Telegram.
+Нужны JDK 21, Android SDK 36, Android NDK `27.2.12479018`, Rust stable с Android targets из `rust-toolchain.toml` и `cargo-ndk`.
 
-### Localization
+```bash
+git clone --recurse-submodules https://github.com/Buqet/Corrode-Android.git
+cd Corrode-Android
+git checkout corrode/rust-phone-normalizer
+cargo install --locked cargo-ndk
+cargo test --manifest-path rust/Cargo.toml
+./gradlew --no-daemon :TMessagesProj_App:assembleAfatDebug
+```
 
-We moved all translations to https://translations.telegram.org/en/android/. Please use it.
+Gradle запускает `scripts/build-rust-android.sh` во время `preBuild` и включает собранные Rust `.so` в APK. Полная инструкция и границы первого Rust-среза находятся в [`docs/CORRODE_RUST_MIGRATION.md`](docs/CORRODE_RUST_MIGRATION.md).
+
+### Сборка с возможностью входа
+
+Сначала получите собственные `api_id` и `api_hash` по [инструкции Telegram](https://core.telegram.org/api/obtaining_api_id), затем задайте их только в локальном окружении:
+
+```bash
+export CORRODE_API_ID="ваш_api_id"
+export CORRODE_API_HASH="ваш_api_hash"
+./gradlew --no-daemon :TMessagesProj_App:assembleAfatDebug
+```
+
+Не добавляйте credentials в Git, публичные CI logs, README или публичные артефакты. Для реального использования отдельно настройте собственные Firebase/Google-сервисы и внимательно выполните [рекомендации по безопасности MTProto](https://core.telegram.org/mtproto/security_guidelines).
+
+## Что переносить дальше
+
+Следующий разумный кандидат — чистая Rust-функция классификации ответов авторизации и серверных ошибок: она может сопоставлять типизированные события с переходами состояния, не принимая коды входа, пароли, ключи сессии или содержимое сообщений. Java пока оставит у себя сетевые запросы и показ экранов. Этот этап — предложение для следующей итерации, а не уже реализованная функция.
+
+## Лицензия и upstream
+
+Исходный Android-клиент распространяется по [GPL-2.0](https://github.com/TelegramMessenger/Telegram-Android/blob/master/LICENSE). Corrode сохраняет upstream copyright/license notices; при распространении производных сборок нужно соблюдать условия GPL и публиковать соответствующий исходный код.

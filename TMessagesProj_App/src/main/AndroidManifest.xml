@@ -7,8 +7,8 @@
     <application
         android:name="org.telegram.messenger.ApplicationLoaderImpl"
         android:label="@string/AppName"
-        android:icon="@android:drawable/sym_def_app_icon"
-        android:roundIcon="@android:drawable/sym_def_app_icon"
+        android:icon="@mipmap/ic_corrode_launcher"
+        android:roundIcon="@mipmap/ic_corrode_launcher"
         tools:replace="android:name,android:label,android:icon,android:roundIcon">
         <meta-data
             android:name="com.google.android.maps.v2.API_KEY"
