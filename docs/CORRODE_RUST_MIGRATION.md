@@ -20,6 +20,8 @@ cargo test --manifest-path rust/Cargo.toml
 
 The Gradle `preBuild` task invokes `scripts/build-rust-android.sh` and fails clearly if `cargo-ndk` or the configured NDK is missing. Corrode does not reuse Telegram's API ID/hash: builds default to ID `0` and an empty hash. For a private local login test, set `CORRODE_API_ID` and `CORRODE_API_HASH` in the build environment to credentials obtained for Corrode. Do not commit or upload those credentials; the public CI APK is intentionally built without them and cannot sign in.
 
+The GitHub Actions Android SDK package list is space-separated, as required by `android-actions/setup-android`; multiline YAML blocks and comma-separated package lists are passed as a single package and fail.
+
 The APK uses a Corrode application ID and an explicitly unofficial app label, so it can be installed alongside the official stable app. It uses placeholder Firebase configuration and disables upstream Google auth, SafetyNet, billing, passkeys, map credentials, and SMS Retriever hashes. Consequently, sign-in, push notifications, Google sign-in, maps, and automatic SMS retrieval require Corrode-specific configuration. The temporary launcher icon is the generic Android icon; replace it with original Corrode branding before any public distribution.
 
 ## License and identity
@@ -33,3 +35,4 @@ The upstream Android client is GPL-2.0. Keep the upstream license and copyright 
 - Telegram API and branding requirements are stated in the official source README above.
 - Android JNI output layout and supported cargo-ndk build flags: [cargo-ndk](https://github.com/bbqsrc/cargo-ndk).
 - Telegram's reproducible-build notes: [core.telegram.org/reproducible-builds](https://core.telegram.org/reproducible-builds).
+- GitHub Actions SDK setup and package-list input: [android-actions/setup-android](https://github.com/android-actions/setup-android).
