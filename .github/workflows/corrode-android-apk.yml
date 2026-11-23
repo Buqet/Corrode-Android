@@ -71,6 +71,8 @@ jobs:
 
       - name: Configure Gradle dependency and build cache
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Install Android SDK and NDK
         uses: android-actions/setup-android@v3
