@@ -3086,10 +3086,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 return;
             }
             String rawPhone = "" + codeField.getText() + phoneField.getText();
-            String phone = org.telegram.messenger.CorrodeNative.normalizePhone(rawPhone);
-            if (phone == null) {
-                phone = PhoneFormat.stripExceptNumbers(rawPhone);
-            }
+            String normalizedPhone = org.telegram.messenger.CorrodeNative.normalizePhone(rawPhone);
+            final String phone = normalizedPhone != null ? normalizedPhone : PhoneFormat.stripExceptNumbers(rawPhone);
             if (activityMode == MODE_LOGIN) {
                 if (getParentActivity() instanceof LaunchActivity) {
                     for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
