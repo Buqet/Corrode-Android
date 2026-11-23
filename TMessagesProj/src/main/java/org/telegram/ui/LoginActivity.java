@@ -4,6 +4,8 @@
  * You should have received a copy of the license in this archive (see LICENSE).
  *
  * Copyright Nikolai Kudashov, 2013-2018.
+ * Corrode change dated 2026-11-23: phone digits are normalized by Rust JNI before auth.sendCode;
+ * the original Java normalizer remains the fallback for unsupported input.
  */
 
 package org.telegram.ui;
@@ -3083,7 +3085,11 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 needHideProgress(false);
                 return;
             }
-            String phone = PhoneFormat.stripExceptNumbers("" + codeField.getText() + phoneField.getText());
+            String rawPhone = "" + codeField.getText() + phoneField.getText();
+            String phone = org.telegram.messenger.CorrodeNative.normalizePhone(rawPhone);
+            if (phone == null) {
+                phone = PhoneFormat.stripExceptNumbers(rawPhone);
+            }
             if (activityMode == MODE_LOGIN) {
                 if (getParentActivity() instanceof LaunchActivity) {
                     for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {

@@ -278,3 +278,32 @@ task checkVisibility {
 }
 
 preBuild.dependsOn checkVisibility
+
+// Corrode change dated 2026-11-23: build and package the Rust JNI slice alongside upstream native code.
+def corrodeRustJniDirectory = layout.buildDirectory.dir('generated/corrodeRust/jniLibs')
+android.sourceSets.main.jniLibs.srcDir(corrodeRustJniDirectory)
+
+tasks.register('buildCorrodeRust') {
+    group = 'build'
+    description = 'Builds Corrode Rust JNI libraries for the Android ABIs.'
+    inputs.files(fileTree(rootProject.file('rust')) { exclude 'target/**' })
+    inputs.file(rootProject.file('scripts/build-rust-android.sh'))
+    outputs.dir(corrodeRustJniDirectory)
+    doLast {
+        File outputDirectory = corrodeRustJniDirectory.get().asFile
+        delete(outputDirectory)
+        File ndkDirectory = android.ndkDirectory
+        if (ndkDirectory == null || !ndkDirectory.isDirectory()) {
+            throw new GradleException("Android NDK ${android.ndkVersion} is required for Corrode Rust JNI builds")
+        }
+        exec {
+            workingDir rootProject.projectDir
+            environment 'ANDROID_NDK_HOME', ndkDirectory.absolutePath
+            commandLine 'bash', rootProject.file('scripts/build-rust-android.sh').absolutePath, outputDirectory.absolutePath
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('buildCorrodeRust')
+}

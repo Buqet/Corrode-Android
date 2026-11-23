@@ -1,0 +1,52 @@
+name: Corrode Rust Android
+
+on:
+  push:
+    branches:
+      - master
+      - "corrode/**"
+    paths:
+      - "rust/**"
+      - "rust-toolchain.toml"
+      - "scripts/build-rust-android.sh"
+      - "TMessagesProj/build.gradle"
+      - "TMessagesProj/src/main/java/org/telegram/messenger/CorrodeNative.java"
+      - "TMessagesProj/src/main/java/org/telegram/ui/LoginActivity.java"
+      - ".github/workflows/corrode-rust-android.yml"
+  pull_request:
+    paths:
+      - "rust/**"
+      - "rust-toolchain.toml"
+      - "scripts/build-rust-android.sh"
+      - "TMessagesProj/build.gradle"
+      - "TMessagesProj/src/main/java/org/telegram/messenger/CorrodeNative.java"
+      - "TMessagesProj/src/main/java/org/telegram/ui/LoginActivity.java"
+      - ".github/workflows/corrode-rust-android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust-and-android-jni:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ndk;27.2.12479018
+      - name: Set Android NDK path
+        run: echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - name: Install cargo-ndk
+        run: cargo install --locked cargo-ndk
+      - name: Check formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml -- --check
+      - name: Run Rust tests
+        run: cargo test --locked --manifest-path rust/Cargo.toml
+      - name: Run Clippy
+        run: cargo clippy --locked --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+      - name: Build JNI library for every supported ABI
+        run: scripts/build-rust-android.sh "$RUNNER_TEMP/corrode-jniLibs"
