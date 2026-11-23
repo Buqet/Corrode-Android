@@ -114,6 +114,21 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 
+// Corrode modification dated 2026-11-23: never fall back to Telegram's upstream API credentials.
+def corrodeApiId = (project.findProperty('CORRODE_API_ID') ?: System.getenv('CORRODE_API_ID') ?: '0').toString()
+def corrodeApiHash = (project.findProperty('CORRODE_API_HASH') ?: System.getenv('CORRODE_API_HASH') ?: '').toString()
+if (!(corrodeApiId ==~ /[0-9]+/)) {
+    throw new GradleException('CORRODE_API_ID must be a non-negative integer; 0 disables Telegram login')
+}
+try {
+    Integer.parseInt(corrodeApiId)
+} catch (NumberFormatException ignored) {
+    throw new GradleException('CORRODE_API_ID must fit in a signed 32-bit integer')
+}
+if (corrodeApiHash && !(corrodeApiHash ==~ /(?i)[0-9a-f]{32}/)) {
+    throw new GradleException('CORRODE_API_HASH must be a 32-character hexadecimal Telegram API hash')
+}
+
 android {
     compileSdkVersion 36
     buildToolsVersion '36.0.0'
@@ -147,6 +162,8 @@ android {
     defaultConfig {
         minSdkVersion 23
         targetSdkVersion 36
+        buildConfigField "int", "CORRODE_API_ID", corrodeApiId
+        buildConfigField "String", "CORRODE_API_HASH", "\"${corrodeApiHash}\""
 
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 

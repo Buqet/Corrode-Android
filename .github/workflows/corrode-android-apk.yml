@@ -1,0 +1,66 @@
+name: Corrode Android debug APK
+
+on:
+  push:
+    branches:
+      - "corrode/**"
+    paths:
+      - "TMessagesProj/**"
+      - "TMessagesProj_App/**"
+      - "TMessagesProj_Modules/**"
+      - "gradle.properties"
+      - "settings.gradle"
+      - "build.gradle"
+      - "rust/**"
+      - "rust-toolchain.toml"
+      - "scripts/build-rust-android.sh"
+      - ".gitmodules"
+      - ".github/workflows/corrode-android-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out fork with pinned submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Android SDK and NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+            ndk;27.2.12479018
+      - name: Set Android NDK path
+        run: echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - name: Install Rust Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - name: Install cargo-ndk
+        run: cargo install --locked cargo-ndk
+      - name: Build installable debug APK without user API credentials
+        env:
+          CORRODE_API_ID: "0"
+          CORRODE_API_HASH: ""
+        run: ./gradlew --no-daemon --max-workers=2 --stacktrace :TMessagesProj_App:assembleAfatDebug
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrode-android-afat-debug
+          path: TMessagesProj_App/build/outputs/apk/afat/debug/app.apk
+          if-no-files-found: error
+          retention-days: 14
