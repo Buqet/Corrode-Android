@@ -17,6 +17,12 @@ on:
       - ".gitmodules"
       - ".github/workflows/corrode-android-apk.yml"
   workflow_dispatch:
+    inputs:
+      publish_login_apk:
+        description: "Upload a login-enabled APK; its embedded Telegram API credentials are recoverable from the APK."
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -31,29 +37,91 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Validate optional Telegram API credentials
+        id: telegram-api
+        shell: bash
+        env:
+          CORRODE_API_ID: ${{ secrets.CORRODE_API_ID }}
+          CORRODE_API_HASH: ${{ secrets.CORRODE_API_HASH }}
+          PUBLISH_LOGIN_APK: ${{ github.event.inputs.publish_login_apk }}
+        run: |
+          api_id="${CORRODE_API_ID:-}"
+          api_hash="${CORRODE_API_HASH:-}"
+          if { [[ -z "$api_id" && -z "$api_hash" ]] || [[ "$api_id" == "0" && -z "$api_hash" ]]; }; then
+            if [[ "${PUBLISH_LOGIN_APK:-false}" == "true" ]]; then
+              echo "::error::Cannot publish a login-enabled APK without both CORRODE_API_ID and CORRODE_API_HASH repository secrets."
+              exit 1
+            fi
+            echo "login_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Telegram login is not configured; this build will be suitable for UI/JNI testing only."
+          elif [[ "$api_id" =~ ^[1-9][0-9]*$ && "$api_hash" =~ ^[0-9A-Fa-f]{32}$ ]]; then
+            echo "login_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Telegram API credentials are configured; values will not be printed."
+          else
+            echo "::error::Set both CORRODE_API_ID (positive integer) and CORRODE_API_HASH (32 hexadecimal characters), or remove both secrets."
+            exit 1
+          fi
+
       - name: Install Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
+
+      - name: Configure Gradle dependency and build cache
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Install Android SDK and NDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018'
+
       - name: Set Android NDK path
         run: echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
       - name: Install Rust Android targets
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache Cargo registry, cargo-ndk, and Rust build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-ndk
+            ~/.cargo/.crates.toml
+            rust/target
+          key: ${{ runner.os }}-corrode-cargo-v1-${{ hashFiles('rust/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-corrode-cargo-v1-${{ hashFiles('rust/Cargo.lock', 'rust-toolchain.toml') }}-
+            ${{ runner.os }}-corrode-cargo-v1-
+
+      - name: Cache Android CMake/Ninja intermediates
+        uses: actions/cache@v4
+        with:
+          path: TMessagesProj/.cxx
+          key: ${{ runner.os }}-corrode-ndk-27.2-cmake-3.22.1-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-corrode-ndk-27.2-cmake-3.22.1-
+
       - name: Install cargo-ndk
         run: cargo install --locked cargo-ndk
-      - name: Build installable debug APK without user API credentials
+
+      - name: Build debug APK (Telegram login requires the repository secrets above)
         env:
-          CORRODE_API_ID: "0"
-          CORRODE_API_HASH: ""
-        run: ./gradlew --no-daemon --max-workers=2 --stacktrace :TMessagesProj_App:assembleAfatDebug
+          CORRODE_API_ID: ${{ secrets.CORRODE_API_ID || '0' }}
+          CORRODE_API_HASH: ${{ secrets.CORRODE_API_HASH || '' }}
+        run: ./gradlew --no-daemon --max-workers=2 --build-cache --stacktrace :TMessagesProj_App:assembleAfatDebug
+
+      - name: Explain skipped login-enabled artifact upload
+        if: steps.telegram-api.outputs.login_enabled == 'true' && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish_login_apk != 'true')
+        run: echo "::notice::The login-enabled APK was built but not uploaded. Use workflow_dispatch and explicitly set publish_login_apk=true only if you accept that its embedded API credentials are recoverable from the APK."
+
       - name: Upload APK artifact
+        if: steps.telegram-api.outputs.login_enabled != 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_login_apk == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: corrode-android-afat-debug

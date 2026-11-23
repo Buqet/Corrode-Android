@@ -8,7 +8,7 @@
   </p>
 </div>
 
-> Corrode не является официальным приложением Telegram и не связан с Telegram FZ-LLC. Это отдельный экспериментальный форк; название, package ID и тестовая иконка Corrode отличаются от официального приложения.
+> Corrode не является официальным приложением Telegram и не связан с Telegram FZ-LLC. Это отдельный экспериментальный форк; название, package ID и иконка Corrode отличаются от официального приложения.
 
 ## О проекте
 
@@ -20,14 +20,31 @@ Corrode основан на [открытом исходном коде Telegram
 - При неподдерживаемом вводе остаётся Java fallback.
 - Для Rust-среза есть unit-тесты; Android workflow собирает native-библиотеки для `armeabi-v7a`, `arm64-v8a`, `x86` и `x86_64`.
 - APK помечен как Corrode и использует отдельный application ID `com.buqet.corrode.beta`.
+- Сохранён полный upstream-поток авторизации: номер телефона, одноразовый код, регистрация и пароль 2FA. Для работы сети требуются собственные Telegram API credentials Corrode.
 
 Это пока не переписанный на Rust мессенджер: UI, Telegram API/MTProto-клиент, обработка сообщений и основная логика остаются на исходных Java/Kotlin/C++ компонентах.
 
 ## Скачать тестовый APK
 
-Откройте [последний запуск сборки APK в GitHub Actions](https://github.com/Buqet/Corrode-Android/actions/workflows/corrode-android-apk.yml?query=branch%3Acorrode%2Frust-phone-normalizer), выберите успешный run и скачайте artifact `corrode-android-afat-debug`. Артефакт хранится ограниченное время; это debug-сборка, а не релиз.
+Откройте [запуски сборки APK в GitHub Actions](https://github.com/Buqet/Corrode-Android/actions/workflows/corrode-android-apk.yml?query=branch%3Acorrode%2Frust-phone-normalizer), выберите успешный run и скачайте artifact `corrode-android-afat-debug`. Обычные сборки без API credentials подходят для проверки установки, интерфейса и Rust/JNI-интеграции, но войти через них нельзя. Это debug-сборки, а не релизы.
 
-**Важно:** публичный CI собирает APK с `CORRODE_API_ID=0` и пустым API hash. Он подходит для проверки установки, интерфейса и Rust/JNI-интеграции, но **войти в Telegram через него нельзя**. Для входа нужна отдельная приватная сборка с собственными Telegram API credentials. Firebase/Google Sign-In, push, карты, SafetyNet, платежи, passkeys и автоматическое чтение SMS также требуют Corrode-конфигурации и в тестовом APK отключены или не настроены.
+## Вход в аккаунт Telegram
+
+Экраны номера, кода, регистрации и 2FA уже есть в сохранённом Telegram login flow. Чтобы разрешить запросы `auth.sendCode`, нужны **собственные** `api_id` и `api_hash` Corrode с [my.telegram.org](https://my.telegram.org) (раздел API development tools); официальные credentials Telegram не используются.
+
+Для CI добавьте GitHub repository secrets `CORRODE_API_ID` и `CORRODE_API_HASH` в **Settings → Secrets and variables → Actions**. После этого workflow использует их для сборки. На push login-enabled APK собирается для проверки, но не загружается в artifacts автоматически. Чтобы вручную загрузить его как Actions artifact, запустите `workflow_dispatch` и включите `publish_login_apk`.
+
+**Важно о приватности:** API credentials встраиваются в клиентский APK как BuildConfig-значения и могут быть извлечены из файла. Не считайте публичный APK способом защитить `api_hash`; публикуйте login-enabled artifact только если готовы раскрыть эти app credentials. Без добавленных secrets workflow создаёт тестовую сборку без рабочего входа.
+
+Для локальной сборки задайте credentials только в окружении:
+
+```bash
+export CORRODE_API_ID="ваш_api_id"
+export CORRODE_API_HASH="ваш_api_hash"
+./gradlew --no-daemon --build-cache :TMessagesProj_App:assembleAfatDebug
+```
+
+Не добавляйте credentials в Git или вывод сборки. Google Sign-In, push, карты, SafetyNet, платежи, passkeys и автоматическое чтение SMS требуют отдельных Corrode-конфигураций и в тестовой сборке отключены или не настроены.
 
 ## Собрать локально
 
@@ -39,22 +56,10 @@ cd Corrode-Android
 git checkout corrode/rust-phone-normalizer
 cargo install --locked cargo-ndk
 cargo test --manifest-path rust/Cargo.toml
-./gradlew --no-daemon :TMessagesProj_App:assembleAfatDebug
+./gradlew --no-daemon --build-cache :TMessagesProj_App:assembleAfatDebug
 ```
 
-Gradle запускает `scripts/build-rust-android.sh` во время `preBuild` и включает собранные Rust `.so` в APK. Полная инструкция и границы первого Rust-среза находятся в [`docs/CORRODE_RUST_MIGRATION.md`](docs/CORRODE_RUST_MIGRATION.md).
-
-### Сборка с возможностью входа
-
-Сначала получите собственные `api_id` и `api_hash` по [инструкции Telegram](https://core.telegram.org/api/obtaining_api_id), затем задайте их только в локальном окружении:
-
-```bash
-export CORRODE_API_ID="ваш_api_id"
-export CORRODE_API_HASH="ваш_api_hash"
-./gradlew --no-daemon :TMessagesProj_App:assembleAfatDebug
-```
-
-Не добавляйте credentials в Git, публичные CI logs, README или публичные артефакты. Для реального использования отдельно настройте собственные Firebase/Google-сервисы и внимательно выполните [рекомендации по безопасности MTProto](https://core.telegram.org/mtproto/security_guidelines).
+Gradle запускает `scripts/build-rust-android.sh` во время `preBuild` и включает собранные Rust `.so` в APK. CI использует Gradle dependency/build cache, а также кэш Cargo/Rust и CMake/NDK intermediates, чтобы ускорить повторные сборки. Первый запуск и сборка после существенных изменений всё равно требуют полной native-компиляции. Полная инструкция и границы первого Rust-среза находятся в [`docs/CORRODE_RUST_MIGRATION.md`](docs/CORRODE_RUST_MIGRATION.md).
 
 ## Что переносить дальше
 
